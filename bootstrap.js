@@ -1,23 +1,32 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+"use strict";
+
+/* exported install, startup, shutdown, uninstall */
+
 const Ci = Components.interfaces;
 const Cu = Components.utils;
 
 Cu.import("resource://gre/modules/Services.jsm");
 
-const REASON = [ 'unknown', 'startup', 'shutdown', 'enable', 'disable',
-                 'install', 'uninstall', 'upgrade', 'downgrade' ];
+const REASON = [ "unknown", "startup", "shutdown", "enable", "disable",
+                 "install", "uninstall", "upgrade", "downgrade" ];
 
-// Usefull piece of code from :bent
+// Useful piece of code from :bent
 // http://mxr.mozilla.org/mozilla-central/source/dom/workers/test/extensions/bootstrap/bootstrap.js
 function registerAddonResourceHandler(data) {
   let file = data.installPath;
-  let fileuri = file.isDirectory() ?
-                Services.io.newFileURI(file) :
-                Services.io.newURI("jar:" + file.path + "!/", null, null);
+  let fileURI = Services.io.newFileURI(file);
+  if (!file.isDirectory()) {
+    fileURI = Services.io.newURI("jar:" + fileURI.spec + "!/");
+  }
   let resourceName = encodeURIComponent(data.id.replace("@", "at"));
 
   Services.io.getProtocolHandler("resource").
               QueryInterface(Ci.nsIResProtocolHandler).
-              setSubstitution(resourceName, fileuri);
+              setSubstitution(resourceName, fileURI);
 
   return "resource://" + resourceName + "/";
 }
@@ -61,7 +70,7 @@ function startup(data, reason) {
 
   try {
     Services.prefs.getBoolPref(LOGPREF);
-  } catch(e) {
+  } catch (e) {
     // Doesn't exist yet
     Services.prefs.setBoolPref(LOGPREF, false);
   }
@@ -91,27 +100,30 @@ function startup(data, reason) {
   let _console = new ConsoleAPI();
   loaderOptions.globals = {
     console: {
-      log: function(...args) {
+      log(...args) {
         canLog() && _console.log(LOGPREFIX, ...args);
       },
-      warn: function(...args) {
+      warn(...args) {
         canLog() && _console.warn(LOGPREFIX, ...args);
       },
-      error: function(...args) {
+      error(...args) {
         canLog() && _console.error(LOGPREFIX, ...args);
       },
-      exception: function(...args) {
+      exception(...args) {
         canLog() && _console.exception(LOGPREFIX, ...args);
       },
-      debug: function(...args) {
+      debug(...args) {
         canLog() && _console.debug(LOGPREFIX, ...args);
       }
     }
-  }
+  };
 
   loader = Loader(loaderOptions);
   let require_ = Require(loader, { id: "./addon" });
   mainModule = require_("./main");
+
+  // TODO: debugging, remove?
+  this.require = require_;
 }
 
 function shutdown(data, reasonCode) {
